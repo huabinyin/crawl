@@ -5,10 +5,10 @@ import requests
 import argparse
 import time
 import random
-import pandas as pd
 from bs4 import BeautifulSoup
 import os
 import json
+import csv
 from datetime import datetime
 
 
@@ -120,7 +120,7 @@ class JisiluCrawler:
         
         print(f"已保存 {bond_code} 数据到 {json_path}")
         
-        # 尝试将数据转换为DataFrame并保存为CSV
+        # 保存为CSV
         try:
             # 将嵌套的data字典展平
             flat_data = {"bond_code": bond_data["bond_code"], 
@@ -132,12 +132,12 @@ class JisiluCrawler:
             for k, v in bond_data["data"].items():
                 flat_data[k] = v
             
-            # 转换为DataFrame
-            df = pd.DataFrame([flat_data])
-            
             # 保存为CSV
             csv_path = os.path.join(self.output_dir, f"{bond_code}.csv")
-            df.to_csv(csv_path, index=False, encoding='utf-8-sig')
+            with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
+                writer = csv.DictWriter(f, fieldnames=flat_data.keys())
+                writer.writeheader()
+                writer.writerow(flat_data)
             print(f"已保存 {bond_code} 数据到 {csv_path}")
             
         except Exception as e:
@@ -151,6 +151,7 @@ class JisiluCrawler:
         try:
             # 准备展平的数据列表
             flat_data_list = []
+            all_fields = set()
             
             for bond_data in all_bonds_data:
                 # 将嵌套的data字典展平
@@ -162,18 +163,28 @@ class JisiluCrawler:
                 # 添加data中的所有键值对
                 for k, v in bond_data["data"].items():
                     flat_data[k] = v
+                    all_fields.add(k)
                 
                 flat_data_list.append(flat_data)
             
-            # 转换为DataFrame
-            df = pd.DataFrame(flat_data_list)
+            # 确保所有字段都存在于每个记录中
+            fieldnames = ["bond_code", "bond_name", "stock_name", "crawl_time"] + list(all_fields)
             
             # 生成带时间戳的文件名
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             csv_path = os.path.join(self.output_dir, f"all_bonds_{timestamp}.csv")
             
             # 保存为CSV
-            df.to_csv(csv_path, index=False, encoding='utf-8-sig')
+            with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                for data in flat_data_list:
+                    # 确保所有字段都存在
+                    for field in fieldnames:
+                        if field not in data:
+                            data[field] = ""
+                    writer.writerow(data)
+            
             print(f"已保存所有可转债数据到 {csv_path}")
             return csv_path
             
